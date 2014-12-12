@@ -89,24 +89,27 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
 
         /* Update everyone to notified */
         if (newCount > 0) {
-            base.execSQL("UPDATE notified = 1 WHERE status = 'FAIL' and notified = 0", new String[] {});
+            base.execSQL("update url set notified = 1 where status = 'FAIL' and notified = 0", new String[] {});
         }
         closeDatabase();
 
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (count == 0) {
+            Log.i(TAG, "No alarm required, everything is OK");
             nm.cancel(ALERT_NOTIFICATION_ID);
         }
         if (newCount != 0) {
+            Log.i(TAG, "Alarm required, unalerted failures: " + newCount);
             /* Make a super obnoxious alert */
             Notification.Builder troubleNotification = new Notification.Builder(context);
             troubleNotification.setCategory(Notification.CATEGORY_ALARM);
             troubleNotification.setPriority(Notification.PRIORITY_HIGH);
             troubleNotification.setWhen(lastOk);
 
+            troubleNotification.setSmallIcon(R.drawable.ic_launcher);
             troubleNotification.setContentTitle(MessageFormat.format("Problems at {0} services", count));
             troubleNotification.setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, MainActivity.class), 0));
-            troubleNotification.setContentText(MessageFormat.format("New problems detected: {1}", newCount));
+            troubleNotification.setContentText(MessageFormat.format("New problems detected: {0}", newCount));
             troubleNotification.setLights(0xff0000, 100, 400);
             troubleNotification.setVibrate(new long[] { 1000, 1000 });
             troubleNotification.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
