@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HTTP Service Monitor</string>
+    <string name="action_add">Add</string>
+    <string name="name">Name</string>
+    <string name="address">Address (URL)</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="required">This field is required.</string>
+</resources>
