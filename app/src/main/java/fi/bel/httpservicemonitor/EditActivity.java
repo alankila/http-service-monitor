@@ -79,10 +79,10 @@ public class EditActivity extends Activity implements View.OnClickListener {
 
             if (id == 0) {
                 state.execSQL("insert into url (name, address, lastOk, lastCheck, status, notified) values (?, ?, 0, 0, 'NEW', 0)",
-                        new Object[]{nameField.getText(), addressField.getText()});
+                        new Object[] { nameField.getText(), addressField.getText() });
             } else {
                 state.execSQL("update url set name = ?, address = ?, lastOk = 0, lastCheck = 0, status = 'EDIT', notified = 0 where _id = ?",
-                        new Object[]{nameField.getText(), addressField.getText(), id});
+                        new Object[] { nameField.getText(), addressField.getText(), id });
             }
         }
 

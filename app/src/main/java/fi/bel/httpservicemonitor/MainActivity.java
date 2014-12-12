@@ -89,7 +89,7 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
 
         /* Update everyone to notified */
         if (newCount > 0) {
-            base.execSQL("update url set notified = 1 where status = 'FAIL' and notified = 0", new String[] {});
+            base.execSQL("update url set notified = 1 where status = 'FAIL' and notified = 0");
         }
         closeDatabase();
 
@@ -99,7 +99,7 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
             nm.cancel(ALERT_NOTIFICATION_ID);
         }
         if (newCount != 0) {
-            Log.i(TAG, "Alarm required, unalerted failures: " + newCount);
+            Log.i(TAG, "Alarm required, new failures: " + newCount);
             /* Make a super obnoxious alert */
             Notification.Builder troubleNotification = new Notification.Builder(context);
             troubleNotification.setCategory(Notification.CATEGORY_ALARM);
@@ -128,12 +128,10 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
     };
 
     protected Cursor buildCursor() {
-        Cursor cursor = state.rawQuery(
+        return state.rawQuery(
                 "select _id, name, address, status, lastOk, lastCheck from url order by _id",
                 new String[] {}
         );
-        Log.i(TAG, "Built a cursor: " + cursor);
-        return cursor;
     }
 
     @Override
