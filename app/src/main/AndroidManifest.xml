@@ -20,9 +20,6 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <intent-filter>
-                <action android:name="fi.bel.httpservicemonitor.MainActivity"/>
-            </intent-filter>
         </activity>
 
         <!-- modify an entry -->
@@ -36,11 +33,7 @@
         </receiver>
 
         <!-- start from alarm -->
-        <receiver android:name="ServiceUpdate">
-            <intent-filter>
-                <action android:name="fi.bel.httpservicemonitor.ServiceUpdate"/>
-            </intent-filter>
-        </receiver>
+        <receiver android:name="ServiceUpdate"/>
     </application>
 
 </manifest>

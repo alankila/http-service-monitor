@@ -46,7 +46,7 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
      * @param context
      */
     protected static void initializeAlarm(Context context) {
-        PendingIntent checkIntent = PendingIntent.getBroadcast(context, 0, new Intent("fi.bel.httpservicemonitor.ServiceUpdate"), 0);
+        PendingIntent checkIntent = PendingIntent.getBroadcast(context, 0, new Intent(context, ServiceUpdate.class), 0);
 
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         boolean prefs = preferences(context).getBoolean("active", false);
