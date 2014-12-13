@@ -7,4 +7,5 @@
     <string name="save">Save</string>
     <string name="delete">Delete</string>
     <string name="required">This field is required.</string>
+    <string name="active">Active, last check:</string>
 </resources>
