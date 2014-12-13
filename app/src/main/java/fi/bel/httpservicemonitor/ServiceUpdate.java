@@ -42,7 +42,7 @@ public class ServiceUpdate extends BroadcastReceiver {
         @Override
         protected void onPreExecute() {
             if (tasks == 0) {
-                Log.i(TAG, "Entering async mode");
+                Log.i(TAG, "New work: entering async mode");
                 pendingResult = goAsync();
             }
             tasks ++;
@@ -97,12 +97,12 @@ public class ServiceUpdate extends BroadcastReceiver {
 
             tasks --;
             if (tasks == 0) {
-                Log.i(TAG, "Exiting async mode");
-                pendingResult.finish();
-                pendingResult = null;
-
                 /* After all updates have completed, perform service fault check. */
                 MainActivity.serviceFaultCheck(context);
+
+                Log.i(TAG, "No more work: exiting async mode");
+                pendingResult.finish();
+                pendingResult = null;
             }
         }
     }
