@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.util.Log;
 
@@ -39,6 +42,7 @@ public class ServiceUpdate extends BroadcastReceiver {
         @Override
         protected void onPreExecute() {
             if (tasks == 0) {
+                Log.i(TAG, "Entering async mode");
                 pendingResult = goAsync();
             }
             tasks ++;
@@ -48,10 +52,10 @@ public class ServiceUpdate extends BroadcastReceiver {
         protected Object doInBackground(Void... o) {
             try {
                 int result = -1;
-                for (int i = 0; i < 3; i ++) {
-                    Log.i(TAG, "Poll " + address + ", attempt: " + (i + 1));
+                for (int i = 1; i <= 3; i ++) {
+                    Log.i(TAG, "Poll " + address + " attempt " + i);
                     result = doInBackgroundWithExceptions();
-                    Log.i(TAG, "Poll " + address + ": " + result);
+                    Log.i(TAG, "Poll " + address + " result: " + result);
                     if (result == 200) {
                         return result;
                     }
@@ -76,14 +80,13 @@ public class ServiceUpdate extends BroadcastReceiver {
 
         @Override
         protected void onPostExecute(Object result) {
+            Log.i(TAG, "Updating database with " + address + ": " + result);
             SQLiteDatabase base = MainActivity.openDatabase(context);
             long now = System.currentTimeMillis();
             if (Integer.valueOf(200).equals(result)) {
-                Log.i(TAG, "Handling poll " + address + " ok");
                 base.execSQL("update url set lastCheck = ?, lastOk = ?, status = ?, notified = ? where _id = ?",
                         new Object[] { now, now, "OK", 0, id });
             } else {
-                Log.w(TAG, "Handling poll " + address + " error: " + result);
                 base.execSQL("update url set lastCheck = ?, status = ? where _id = ?",
                         new Object[] { now, "FAIL", id });
             }
@@ -94,6 +97,7 @@ public class ServiceUpdate extends BroadcastReceiver {
 
             tasks --;
             if (tasks == 0) {
+                Log.i(TAG, "Exiting async mode");
                 pendingResult.finish();
                 pendingResult = null;
 
@@ -105,10 +109,19 @@ public class ServiceUpdate extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.i(TAG, "Update alarm fired");
+        Log.i(TAG, "Update request received");
 
         /* If we are already working, then don't add any new checks. */
         if (tasks != 0) {
+            Log.w(TAG, "Not polling: prior tasks still running");
+            return;
+        }
+
+        /* If we have no network, we can't poll. */
+        ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetwork = manager.getActiveNetworkInfo();
+        if (activeNetwork == null || !activeNetwork.isConnected()) {
+            Log.w(TAG, "Not polling: network is not connected");
             return;
         }
 
@@ -121,6 +134,7 @@ public class ServiceUpdate extends BroadcastReceiver {
         while (cursor.moveToNext()) {
             long id = cursor.getLong(0);
             String address = cursor.getString(1);
+            Log.i(TAG, "Scheduling check of: " + address);
             CheckServiceTask task = new CheckServiceTask(context, id, address);
             task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         }
