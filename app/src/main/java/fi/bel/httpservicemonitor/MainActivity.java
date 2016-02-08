@@ -12,6 +12,8 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.RingtoneManager;
 import android.os.Bundle;
 import android.util.Log;
@@ -29,8 +31,8 @@ import java.util.HashMap;
 
 public class MainActivity extends Activity implements ListView.OnItemClickListener, View.OnClickListener {
     protected static final String TAG = MainActivity.class.getSimpleName();
-    protected static final long CHECK_INTERVAL_MS = 1000 * 60 * 10;
-    protected static final int ALERT_NOTIFICATION_ID = 1;
+    protected static final long CHECK_INTERVAL_MS = 1000 * 60 * 10; /* check every 10 min */
+    protected static final long REACT_INTERVAL_MS = 1000 * 60 * 25; /* complain after 25 min */
 
     protected static int stateCount;
     protected static SQLiteDatabase state;
@@ -79,57 +81,6 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
         if (stateCount == 0) {
             state.close();
             state = null;
-        }
-    }
-
-    /**
-     * Make ungodly racket if there are failures in any monitored service
-     *
-     * @param context
-     */
-    protected static void serviceFaultCheck(Context context) {
-        SQLiteDatabase base = openDatabase(context);
-        Cursor cursor = base.rawQuery("select min(lastOk), max(lastCheck), count(*) from url where status = 'FAIL'", new String[] {});
-        cursor.moveToFirst();
-        long lastOk = cursor.getLong(0);
-        long lastCheck = cursor.getLong(1);
-        long count = cursor.getLong(2);
-        cursor.close();
-
-        cursor = base.rawQuery("select count(*) from url where status = 'FAIL' and notified = 0", new String[] {});
-        cursor.moveToFirst();
-        long newCount = cursor.getLong(0);
-        cursor.close();
-
-        /* Update everyone to notified */
-        if (newCount > 0) {
-            base.execSQL("update url set notified = 1 where status = 'FAIL' and notified = 0");
-        }
-        closeDatabase();
-
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (count == 0) {
-            Log.i(TAG, "No alarm required, everything is OK");
-            nm.cancel(ALERT_NOTIFICATION_ID);
-        }
-        if (newCount != 0) {
-            Log.i(TAG, "Alarm required, new failures: " + newCount);
-            /* Make a super obnoxious alert */
-            Notification.Builder troubleNotification = new Notification.Builder(context);
-            troubleNotification.setCategory(Notification.CATEGORY_ALARM);
-            troubleNotification.setPriority(Notification.PRIORITY_HIGH);
-            troubleNotification.setWhen(lastOk);
-
-            troubleNotification.setSmallIcon(R.drawable.ic_launcher);
-            troubleNotification.setContentTitle(MessageFormat.format("Problems at {0} services", count));
-            troubleNotification.setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, MainActivity.class), 0));
-            troubleNotification.setContentText(MessageFormat.format("New problems detected: {0}", newCount));
-            troubleNotification.setLights(0xff0000, 100, 400);
-            troubleNotification.setVibrate(new long[] { 1000, 1000 });
-            troubleNotification.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
-            troubleNotification.setOnlyAlertOnce(false);
-
-            nm.notify(ALERT_NOTIFICATION_ID, troubleNotification.build());
         }
     }
 

@@ -11,8 +11,6 @@ import android.widget.EditText;
 
 public class EditActivity extends Activity implements View.OnClickListener {
     protected static final String TAG = EditActivity.class.getSimpleName();
-    protected static final long CHECK_INTERVAL_MS = 1000 * 60 * 5;
-    protected static final int ALERT_NOTIFICATION = 1;
 
     protected SQLiteDatabase state;
 
