@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -15,6 +16,7 @@ import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.PowerManager;
 import android.util.Log;
+import android.widget.RemoteViews;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,20 +59,28 @@ public class ServiceUpdate extends BroadcastReceiver {
 
         @Override
         protected Object doInBackground(Void... o) {
-            try {
-                int result = -1;
-                for (int i = 1; i <= 5; i ++) {
-                    Log.i(TAG, "Poll " + address + " attempt " + i);
+            Object result = null;
+            for (int i = 1; i <= 5; i ++) {
+                Log.i(TAG, "Poll " + address + " attempt " + i);
+                try {
                     result = doInBackgroundWithExceptions();
-                    Log.i(TAG, "Poll " + address + " result: " + result);
-                    if (result == 200) {
-                        return result;
-                    }
+                } catch (IOException ioe) {
+                    result = ioe;
                 }
-                return result;
-            } catch (IOException ioe) {
-                return ioe;
+
+                Log.i(TAG, "Poll " + address + " result: " + result);
+                if (result.equals(200)) {
+                    break;
+                }
+
+                try {
+                    Thread.sleep(5000);
+                }
+                catch (InterruptedException ie) {
+                    break;
+                }
             }
+            return result;
         }
 
         protected int doInBackgroundWithExceptions() throws IOException {
@@ -90,7 +100,7 @@ public class ServiceUpdate extends BroadcastReceiver {
             Log.i(TAG, "Updating database with " + address + ": " + result);
             SQLiteDatabase base = MainActivity.openDatabase(context);
             long now = System.currentTimeMillis();
-            if (Integer.valueOf(200).equals(result)) {
+            if (result.equals(200)) {
                 base.execSQL("update url set lastCheck = ?, lastOk = ?, status = ?, notified = ? where _id = ?",
                         new Object[] { now, now, "OK", 0, id });
             } else {
@@ -150,25 +160,20 @@ public class ServiceUpdate extends BroadcastReceiver {
             if (newCount != 0) {
                 Log.i(TAG, "Alarm required, new failures: " + newCount);
                 /* Make a super obnoxious alert */
-                Notification.Builder troubleNotification = new Notification.Builder(context);
-                troubleNotification.setCategory(Notification.CATEGORY_ALARM);
-                troubleNotification.setPriority(Notification.PRIORITY_HIGH);
-                troubleNotification.setWhen(lastOk);
-
-                troubleNotification.setSmallIcon(R.drawable.ic_launcher);
-                troubleNotification.setContentTitle(MessageFormat.format("Problems at {0} services", count));
-                troubleNotification.setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, MainActivity.class), 0));
-                troubleNotification.setContentText(MessageFormat.format("New problems detected: {0}", newCount));
-                troubleNotification.setLights(0xff0000, 100, 400);
-                troubleNotification.setVibrate(new long[] { 1000, 1000 });
-                troubleNotification.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
-
-                nm.notify(ALERT_NOTIFICATION_ID, troubleNotification.build());
-
-                /* Create 1 minute wakelock so that sound doesn't stop right away, for Android >= 5 */
-                PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-                PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, ServiceUpdate.class.getSimpleName());
-                wl.acquire(60000);
+                Notification n = new Notification();
+                //n.category = Notification.CATEGORY_ALARM;
+                n.priority = Notification.PRIORITY_HIGH;
+                n.when = lastOk;
+                n.icon = R.drawable.ic_launcher;
+                n.contentIntent = PendingIntent.getActivity(context, 0, new Intent(context, MainActivity.class), 0);
+                n.tickerText = MessageFormat.format("Old problems: {0}; New problems: {1}", count, newCount);
+                n.flags = Notification.FLAG_INSISTENT | Notification.FLAG_SHOW_LIGHTS | Notification.FLAG_AUTO_CANCEL | Notification.FLAG_ONGOING_EVENT;
+                n.ledARGB = 0xff0000;
+                n.ledOffMS = 400;
+                n.ledOnMS = 100;
+                n.sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                n.vibrate = new long[] { 1000, 1000};
+                nm.notify(ALERT_NOTIFICATION_ID, n);
             }
         }
     }
@@ -194,8 +199,8 @@ public class ServiceUpdate extends BroadcastReceiver {
         /* Schedule all check tasks */
         SQLiteDatabase base = MainActivity.openDatabase(context);
         Cursor cursor = base.rawQuery(
-                "select _id, address from url where lastCheck < ? order by _id",
-                new String[] { String.valueOf(System.currentTimeMillis() - MainActivity.CHECK_INTERVAL_MS) }
+                "select _id, address from url where lastCheck < ? or status = 'FAIL' order by _id",
+                new String[] { String.valueOf(System.currentTimeMillis() - MainActivity.CHECK_INTERVAL_MS / 2) }
         );
         while (cursor.moveToNext()) {
             long id = cursor.getLong(0);
@@ -204,6 +209,7 @@ public class ServiceUpdate extends BroadcastReceiver {
             CheckServiceTask task = new CheckServiceTask(context, id, address);
             task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         }
+        cursor.close();
         MainActivity.closeDatabase();
     }
 }

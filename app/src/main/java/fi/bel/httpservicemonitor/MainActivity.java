@@ -51,13 +51,13 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
         PendingIntent checkIntent = PendingIntent.getBroadcast(context, 0, new Intent(context, ServiceUpdate.class), 0);
 
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Log.i(TAG, "Telling AlarmManager to cease invoking us.");
+        alarmManager.cancel(checkIntent);
+
         boolean prefs = preferences(context).getBoolean("active", false);
         if (prefs) {
             Log.i(TAG, "Telling AlarmManager to run ourselves every " + CHECK_INTERVAL_MS + " ms");
             alarmManager.setInexactRepeating(AlarmManager.ELAPSED_REALTIME_WAKEUP, 0, CHECK_INTERVAL_MS, checkIntent);
-        } else {
-            Log.i(TAG, "Telling AlarmManager to cease invoking us.");
-            alarmManager.cancel(checkIntent);
         }
     }
 
@@ -89,7 +89,7 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
         if (!prefs.contains("active")) {
             SharedPreferences.Editor editor = prefs.edit();
             editor.putBoolean("active", true);
-            editor.commit();
+            editor.apply();
         }
         return prefs;
     }
@@ -100,19 +100,14 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
             Log.i(TAG, "Main view refresh requested");
             listViewAdapter.changeCursor(buildCursor());
 
-            Cursor cursor = state.rawQuery("select min(lastCheck) from url", new String[] {});
+            Cursor cursor = state.rawQuery("select min(lastCheck) from url where lastCheck != 0", new String[] {});
             cursor.moveToFirst();
-            Long time = cursor.getLong(0);
+            long time = cursor.getLong(0);
             cursor.close();
-            String text = context.getString(R.string.active) + " ";
-            if (time != null) {
-                text += MessageFormat.format("{1,date,yyyy-MM-dd HH:mm:ss}",
-                        context.getString(R.string.active),
-                        new Date(time)
-                );
-            } else {
-                text += "-";
-            }
+            String text = MessageFormat.format("{0} {1,date,yyyy-MM-dd HH:mm:ss}",
+                    context.getString(R.string.active),
+                    new Date(time)
+            );
             activeBox.setText(text);
         }
     };
@@ -195,7 +190,7 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
         if (view == activeBox) {
             SharedPreferences.Editor editor = preferences(this).edit();
             editor.putBoolean("active", activeBox.isChecked());
-            editor.commit();
+            editor.apply();
             initializeAlarm(this);
         }
     }
