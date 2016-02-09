@@ -7,7 +7,7 @@ import android.content.Intent;
 /**
  * Created by alankila on 10.12.14.
  */
-public class BootCompleted extends BroadcastReceiver {
+public class BootCompletedReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         MainActivity.initializeAlarm(context);

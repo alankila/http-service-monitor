@@ -27,7 +27,6 @@ public class EditActivity extends Activity implements View.OnClickListener {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         state = MainActivity.openDatabase(this);
 
         setContentView(R.layout.activity_edit);
@@ -38,13 +37,13 @@ public class EditActivity extends Activity implements View.OnClickListener {
 
         id = getIntent().getLongExtra("id", 0);
         if (id != 0) {
-            Cursor cursor = state.rawQuery("select name, address from url where _id = ?",
-                    new String[] { String.valueOf(id) });
-            if (cursor.moveToNext()) {
-                nameField.setText(cursor.getString(0));
-                addressField.setText(cursor.getString(1));
+            try (Cursor cursor = state.rawQuery("select name, address from url where _id = ?",
+                    new String[] { String.valueOf(id) })) {
+                if (cursor.moveToNext()) {
+                    nameField.setText(cursor.getString(0));
+                    addressField.setText(cursor.getString(1));
+                }
             }
-            cursor.close();
         } else {
             deleteButton.setVisibility(View.GONE);
         }
@@ -56,7 +55,7 @@ public class EditActivity extends Activity implements View.OnClickListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        MainActivity.closeDatabase();
+        state.close();
     }
 
     @Override
@@ -76,10 +75,10 @@ public class EditActivity extends Activity implements View.OnClickListener {
             }
 
             if (id == 0) {
-                state.execSQL("insert into url (name, address, lastOk, lastCheck, status, notified) values (?, ?, 0, 0, 'NEW', 0)",
+                state.execSQL("insert into url (name, address, lastOk, lastCheck, status) values (?, ?, 0, 0, 'NEW')",
                         new Object[] { nameField.getText(), addressField.getText() });
             } else {
-                state.execSQL("update url set name = ?, address = ?, lastOk = 0, lastCheck = 0, status = 'EDIT', notified = 0 where _id = ?",
+                state.execSQL("update url set name = ?, address = ?, lastOk = 0, lastCheck = 0, status = 'EDIT' where _id = ?",
                         new Object[] { nameField.getText(), addressField.getText(), id });
             }
         }

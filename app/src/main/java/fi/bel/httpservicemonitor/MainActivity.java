@@ -2,8 +2,6 @@ package fi.bel.httpservicemonitor;
 
 import android.app.Activity;
 import android.app.AlarmManager;
-import android.app.Notification;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -12,9 +10,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.media.AudioAttributes;
-import android.media.AudioManager;
-import android.media.RingtoneManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
@@ -27,15 +22,13 @@ import android.widget.SimpleCursorAdapter;
 
 import java.text.MessageFormat;
 import java.util.Date;
-import java.util.HashMap;
 
 public class MainActivity extends Activity implements ListView.OnItemClickListener, View.OnClickListener {
     protected static final String TAG = MainActivity.class.getSimpleName();
     protected static final long CHECK_INTERVAL_MS = 1000 * 60 * 10; /* check every 10 min */
     protected static final long REACT_INTERVAL_MS = 1000 * 60 * 25; /* complain after 25 min */
 
-    protected static int stateCount;
-    protected static SQLiteDatabase state;
+    protected SQLiteDatabase state;
 
     protected ListView listView;
     protected SimpleCursorAdapter listViewAdapter;
@@ -45,10 +38,10 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
     /**
      * Ensure that we have a running handler for our alarms.
      *
-     * @param context
+     * @param context some context
      */
     protected static void initializeAlarm(Context context) {
-        PendingIntent checkIntent = PendingIntent.getBroadcast(context, 0, new Intent(context, ServiceUpdate.class), 0);
+        PendingIntent checkIntent = PendingIntent.getBroadcast(context, 0, new Intent(context, ServiceUpdateReceiver.class), 0);
 
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         Log.i(TAG, "Telling AlarmManager to cease invoking us.");
@@ -64,24 +57,13 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
     /**
      * Return initialized database handle suitable for querying.
      *
-     * @param context
+     * @param context some context
      * @return open database
      */
     protected static SQLiteDatabase openDatabase(Context context) {
-        if (stateCount == 0) {
-            state = context.openOrCreateDatabase("state", Context.MODE_PRIVATE, null);
-            state.execSQL("create table if not exists url (_id integer primary key, name text, address text, lastOk text, lastCheck text, status text, notified int)");
-        }
-        stateCount ++;
+        SQLiteDatabase state = context.openOrCreateDatabase("state", Context.MODE_PRIVATE, null);
+        state.execSQL("create table if not exists url (_id integer primary key, name text, address text, lastOk text, lastCheck text, status text)");
         return state;
-    }
-
-    protected static void closeDatabase() {
-        stateCount --;
-        if (stateCount == 0) {
-            state.close();
-            state = null;
-        }
     }
 
     protected static SharedPreferences preferences(Context context) {
@@ -100,21 +82,28 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
             Log.i(TAG, "Main view refresh requested");
             listViewAdapter.changeCursor(buildCursor());
 
-            Cursor cursor = state.rawQuery("select min(lastCheck) from url where lastCheck != 0", new String[] {});
-            cursor.moveToFirst();
-            long time = cursor.getLong(0);
-            cursor.close();
-            String text = MessageFormat.format("{0} {1,date,yyyy-MM-dd HH:mm:ss}",
-                    context.getString(R.string.active),
-                    new Date(time)
-            );
+            long time;
+            try (SQLiteDatabase state = openDatabase(context);
+                Cursor cursor = state.rawQuery("select min(lastCheck) from url where lastCheck != 0", new String[] {})) {
+                cursor.moveToFirst();
+                time = cursor.getLong(0);
+            }
+
+            String text = context.getString(R.string.active);
+            if (time != 0) {
+                text += MessageFormat.format("{1,date,yyyy-MM-dd HH:mm:ss}",
+                        new Date(time)
+                );
+            } else {
+                text += "-";
+            }
             activeBox.setText(text);
         }
     };
 
     protected Cursor buildCursor() {
         return state.rawQuery(
-                "select _id, name, address, status, lastOk, lastCheck from url order by _id",
+                "select _id, name, status from url order by _id",
                 new String[] {}
         );
     }
@@ -152,7 +141,7 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
     protected void onDestroy() {
         super.onDestroy();
         unregisterReceiver(refresh);
-        closeDatabase();
+        state.close();
     }
 
     @Override
