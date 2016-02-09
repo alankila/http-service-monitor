@@ -131,48 +131,56 @@ public class ServiceUpdate extends BroadcastReceiver {
 
             /* First figure out how many are currently in alarm state */
             SQLiteDatabase base = MainActivity.openDatabase(context);
-            Cursor cursor = base.rawQuery("select min(lastOk), count(*) from url where lastOk < ? and status = 'FAIL'",
-                    new String[] { String.valueOf(lastOkTooOld) });
+            Cursor cursor = base.rawQuery("select min(lastOk), count(*) from url where status = 'FAIL'",
+                    new String[] {});
             cursor.moveToFirst();
             long lastOk = cursor.getLong(0);
-            long count = cursor.getLong(1);
+            long failureCount = cursor.getLong(1);
             cursor.close();
 
             /* Then figure out when which have been notified so far */
             cursor = base.rawQuery("select count(*) from url where lastOk < ? and status = 'FAIL' and notified = 0",
                     new String[] { String.valueOf(lastOkTooOld) });
             cursor.moveToFirst();
-            long newCount = cursor.getLong(0);
+            long oldFailureCount = cursor.getLong(0);
             cursor.close();
 
             /* Update everyone to notified */
-            if (newCount > 0) {
+            if (oldFailureCount > 0) {
                 base.execSQL("update url set notified = 1 where lastOk < ? and status = 'FAIL' and notified = 0",
                         new String[] { String.valueOf(lastOkTooOld) });
             }
             MainActivity.closeDatabase();
 
             NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (count == 0) {
+
+            Notification.Builder nb = new Notification.Builder(context);
+            nb.setPriority(Notification.PRIORITY_HIGH);
+            nb.setWhen(lastOk);
+            nb.setSmallIcon(R.drawable.ic_launcher);
+            nb.setContentTitle("Some services not reachable");
+            nb.setContentText(MessageFormat.format("Problems at {0} services", failureCount));
+            nb.setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, MainActivity.class), 0));
+            nb.setAutoCancel(true);
+            nb.setOngoing(true);
+            nb.setOnlyAlertOnce(false);
+
+            if (failureCount == 0) {
                 Log.i(TAG, "No alarm required, everything is now OK");
                 nm.cancel(ALERT_NOTIFICATION_ID);
-            }
-            if (newCount != 0) {
-                Log.i(TAG, "Alarm required, new failures: " + newCount);
+            } else if (oldFailureCount == 0) {
+                Log.i(TAG, "Weak alarm required, ongoing failures: " + failureCount);
+                nb.setLights(0xbbbb00, 100, 400);
+                Notification n = nb.build();
+                nm.notify(ALERT_NOTIFICATION_ID, n);
+            } else {
+                Log.i(TAG, "Strong alarm required, old failures: " + oldFailureCount);
                 /* Make a super obnoxious alert */
-                Notification n = new Notification();
-                //n.category = Notification.CATEGORY_ALARM;
-                n.priority = Notification.PRIORITY_HIGH;
-                n.when = lastOk;
-                n.icon = R.drawable.ic_launcher;
-                n.contentIntent = PendingIntent.getActivity(context, 0, new Intent(context, MainActivity.class), 0);
-                n.tickerText = MessageFormat.format("Old problems: {0}; New problems: {1}", count, newCount);
-                n.flags = Notification.FLAG_INSISTENT | Notification.FLAG_SHOW_LIGHTS | Notification.FLAG_AUTO_CANCEL | Notification.FLAG_ONGOING_EVENT;
-                n.ledARGB = 0xff0000;
-                n.ledOffMS = 400;
-                n.ledOnMS = 100;
-                n.sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-                n.vibrate = new long[] { 1000, 1000};
+                nb.setLights(0xff0000, 100, 400);
+                nb.setVibrate(new long[] { 1000, 1000 });
+                nb.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+                Notification n = nb.build();
+                n.flags |= Notification.FLAG_INSISTENT;
                 nm.notify(ALERT_NOTIFICATION_ID, n);
             }
         }
