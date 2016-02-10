@@ -91,11 +91,11 @@ public class MainActivity extends Activity implements ListView.OnItemClickListen
 
             String text = context.getString(R.string.active);
             if (time != 0) {
-                text += MessageFormat.format("{1,date,yyyy-MM-dd HH:mm:ss}",
+                text += MessageFormat.format(" {0,date,yyyy-MM-dd HH:mm:ss}",
                         new Date(time)
                 );
             } else {
-                text += "-";
+                text += " -";
             }
             activeBox.setText(text);
         }

@@ -11,7 +11,9 @@ import android.database.sqlite.SQLiteDatabase;
 import android.media.RingtoneManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
+import android.os.PowerManager;
 import android.util.Log;
 
 import java.io.IOException;
@@ -84,14 +86,21 @@ public class ServiceUpdateReceiver extends BroadcastReceiver {
      * The payload checks the results and maybe triggers alarm and UI updates.
      */
     protected static class CoordinateWork extends AsyncTask<Void, Void, Void> {
-        protected Context applicationContext;
-        protected PendingResult result;
-        protected Map<Long, AsyncTask<Void, Void, Object>> taskMap;
+        protected final Context applicationContext;
+        protected final Map<Long, String> addressMap;
+        protected final Map<Long, AsyncTask<Void, Void, Object>> taskMap = new HashMap<>();
+        protected PowerManager.WakeLock lock;
 
-        protected CoordinateWork(Context applicationContext, PendingResult result, Map<Long, String> addressMap) {
+        protected CoordinateWork(Context applicationContext, Map<Long, String> addressMap) {
             this.applicationContext = applicationContext;
-            this.result = result;
-            this.taskMap = new HashMap<>();
+            this.addressMap = addressMap;
+        }
+
+        @Override
+        protected void onPreExecute() {
+            PowerManager pm = (PowerManager) applicationContext.getSystemService(Context.POWER_SERVICE);
+            lock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+            lock.acquire();
 
             for (Map.Entry<Long, String> e : addressMap.entrySet()) {
                 CheckServiceTask task = new CheckServiceTask(e.getValue());
@@ -114,6 +123,13 @@ public class ServiceUpdateReceiver extends BroadcastReceiver {
         }
 
         protected void handleResult(Long id, Object result) {
+            /* If we have no network now, we don't trust this result.
+             * Keeping prior state, likely OK, is better */
+            if (!isNetworkConnected(applicationContext)) {
+                Log.w(TAG, "Ignoring result: network is not connected: " + result);
+                return;
+            }
+
             Log.i(TAG, "Updating database with " + id + ": " + result);
             long now = System.currentTimeMillis();
             try (SQLiteDatabase base = MainActivity.openDatabase(applicationContext)) {
@@ -135,7 +151,7 @@ public class ServiceUpdateReceiver extends BroadcastReceiver {
             /* Refresh the view each time we get results. */
             serviceFaultCheck();
 
-            result.finish();
+            lock.release();
         }
 
         /**
@@ -201,12 +217,8 @@ public class ServiceUpdateReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.i(TAG, "Update request received");
-
-        /* If we have no network, we can't poll. */
-        ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetwork = manager.getActiveNetworkInfo();
-        if (activeNetwork == null || !activeNetwork.isConnected()) {
-            Log.w(TAG, "Not polling: network is not connected");
+        if (!isNetworkConnected(context)) {
+            Log.i(TAG, "Not running, network is not connected.");
             return;
         }
 
@@ -222,7 +234,15 @@ public class ServiceUpdateReceiver extends BroadcastReceiver {
             }
         }
 
-        new CoordinateWork(context.getApplicationContext(), goAsync(), addressMap)
-                .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        if (!addressMap.isEmpty()) {
+            new CoordinateWork(context.getApplicationContext(), addressMap)
+                    .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+        }
+    }
+
+    protected static boolean isNetworkConnected(Context context) {
+        ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetwork = manager.getActiveNetworkInfo();
+        return activeNetwork != null && activeNetwork.isConnected();
     }
 }
