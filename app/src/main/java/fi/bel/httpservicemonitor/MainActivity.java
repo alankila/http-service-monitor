@@ -26,7 +26,7 @@ import java.util.Date;
 public class MainActivity extends Activity implements ListView.OnItemClickListener, View.OnClickListener {
     protected static final String TAG = MainActivity.class.getSimpleName();
     protected static final long CHECK_INTERVAL_MS = 1000 * 60 * 10; /* check every 10 min */
-    protected static final long REACT_INTERVAL_MS = 1000 * 60 * 25; /* complain after 25 min */
+    protected static final long REACT_INTERVAL_MS = 1000 * 60 * 55; /* complain after 55 min */
 
     protected SQLiteDatabase state;
 

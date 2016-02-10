@@ -123,22 +123,18 @@ public class ServiceUpdateReceiver extends BroadcastReceiver {
         }
 
         protected void handleResult(Long id, Object result) {
-            /* If we have no network now, we don't trust this result.
-             * Keeping prior state, likely OK, is better */
-            if (!isNetworkConnected(applicationContext)) {
-                Log.w(TAG, "Ignoring result: network is not connected: " + result);
-                return;
-            }
-
             Log.i(TAG, "Updating database with " + id + ": " + result);
             long now = System.currentTimeMillis();
             try (SQLiteDatabase base = MainActivity.openDatabase(applicationContext)) {
+                /* trust 200 OK no matter what */
                 if (result.equals(200)) {
                     base.execSQL("update url set lastCheck = ?, lastOk = ?, status = ? where _id = ?",
                             new Object[]{now, now, "OK", id});
-                } else {
+                } else if (isNetworkConnected(applicationContext)) {
                     base.execSQL("update url set lastCheck = ?, status = ? where _id = ?",
                             new Object[]{now, "FAIL", id});
+                } else {
+                    Log.w(TAG, "Network is no longer connected, ignoring failure");
                 }
             }
         }
